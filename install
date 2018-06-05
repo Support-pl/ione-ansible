@@ -1,0 +1,7 @@
+#!/bin/bash
+
+curl -O https://raw.githubusercontent.com/net-ssh/net-ssh/master/net-ssh-public_cert.pem
+gem cert --add net-ssh-public_cert.pem
+
+gem install net-ssh -P HighSecurity
+gem install net-sftp -P HighSecurity

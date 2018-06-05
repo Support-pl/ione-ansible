@@ -1,0 +1,5 @@
+AnsibleServer: # Credentials for Ansible Server
+  host: '185.66.69.101'
+  port: 52222
+  user: 'root'
+  data-getters-url: '/scripts/server/service/ansible/getters.rb'
