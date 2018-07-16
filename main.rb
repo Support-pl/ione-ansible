@@ -26,22 +26,25 @@ class IONe
                     err = "Line #{__LINE__ + 1}: Error while connecting to Ansible-server"
                     Net::SSH.start(ANSIBLE_HOST, ANSIBLE_HOST_USER, :port => ANSIBLE_HOST_PORT) do | ssh |
                         err = "Line #{__LINE__ + 1}: Error while creating temporary playbook file occurred"
-                        File.open("/tmp/#{installid}.yml", 'w') { |file| file.write(playbook.gsub('{{group}}', installid)) }
+                        File.open("/tmp/#{installid}.yml", 'w') { |file| file.write(playbook.gsub('<%group%>', installid)) }
                         err = "Line #{__LINE__ + 1}: Error while uploading playbook occurred"
                         ssh.sftp.upload!("/tmp/#{installid}.yml", "/tmp/#{installid}.yml")
                         err = "Line #{__LINE__ + 1}: Error while creating temporary ansible-inventory file occurred"
                         File.open("/tmp/#{installid}.ini", 'w') { |file| file.write("[#{installid}]\n#{host}\n") }
                         err = "Line #{__LINE__ + 1}: Error while uploading ansible-inventory occurred"
                         ssh.sftp.upload!("/tmp/#{installid}.ini", "/tmp/#{installid}.ini")
+                        Thread.exit if params['upload']
                         LOG 'PB and hosts have been generated', 'AnsibleController' 
                         err = "Line #{__LINE__ + 1}: Error while executing playbook occured"
                         LOG 'Executing PB', 'AnsibleController' 
                         $pbexec = ssh.exec!("ansible-playbook /tmp/#{installid}.yml -i /tmp/#{installid}.ini").split(/\n/)
                         LOG 'PB has been Executed', 'AnsibleController' 
-                        def status(regexp)
-                            return $pbexec.last[regexp].split(/=/).last.to_i
-                        end
-                        LOG 'Creating log-ticket', 'AnsibleController' 
+                        # def status(regexp)
+                            # return $pbexec.last[regexp].split(/=/).last.to_i
+                        # end
+                        LOG 'PB execution result:', 'DEBUG'
+                        LOG $pbexec.join("\n"), 'DEBUG'
+                        # LOG 'Creating log-ticket', 'AnsibleController' 
                         LOG "#{service} installed on #{ip}", "AnsibleController"
                         LOG 'Wiping hosts and pb files', 'AnsibleController' 
                         ssh.sftp.remove!("/tmp/#{installid}.ini")
@@ -54,6 +57,13 @@ class IONe
                 end
             end
             LOG 'Ansible job ended', 'AnsibleController'
+            if !params['end-method'].nil? then
+                LOG 'Calling end-method', 'AnsibleController'
+                begin
+                    send params['end-method'], params
+                rescue
+                end
+            end
             Thread.exit
         end
         return 200
