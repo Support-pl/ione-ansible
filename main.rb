@@ -9,11 +9,13 @@ ANSIBLE_HOST_USER = CONF['AnsibleServer']['user']
 require 'net/ssh'
 require 'net/sftp'
 
+require "#{ROOT}/modules/ansible/db.rb"
+
 puts 'Extending handler class by AnsibleController'
 
 class IONe
     def AnsibleController(params)
-        LOG params.merge!({:method => __method__.to_s}).debug_out, 'DEBUG'
+        LOG_DEBUG params.merge!({:method => __method__.to_s}).debug_out
         host, playbooks = params['host'], params['services']
         return if DEBUG
         ip, err = host.split(':').first, ""
@@ -42,8 +44,8 @@ class IONe
                         # def status(regexp)
                             # return $pbexec.last[regexp].split(/=/).last.to_i
                         # end
-                        LOG 'PB execution result:', 'DEBUG'
-                        LOG $pbexec.join("\n"), 'DEBUG'
+                        LOG_DEBUG 'PB execution result:'
+                        LOG_DEBUG $pbexec.join("\n")
                         # LOG 'Creating log-ticket', 'AnsibleController' 
                         LOG "#{service} installed on #{ip}", "AnsibleController"
                         LOG 'Wiping hosts and pb files', 'AnsibleController' 
