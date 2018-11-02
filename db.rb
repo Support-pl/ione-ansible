@@ -71,8 +71,30 @@ class AnsiblePlaybook
         end
         nil
     end
+    def vars
+        sync
+        body = YAML.load @body
+        begin
+            body['vars']
+        rescue => e
+            if e.message.split(':').first = 'TypeError' then
+                raise "SyntaxError: Check if here is now hyphens at the playbook beginning. Playbook parse result should be Hash"
+            end
+        end
+    end
 
-    def run host, password:nil, ssh_key:nil
+    def run host, vars:nil, password:nil, ssh_key:nil
+        unless vars.nil? then
+            body = YAML.load @body
+            body['vars'].merge! vars
+            @body = YAML.dump body
+        end
+        IONe.new($client).AnsibleController({
+            'host' => host,
+            'services' => [
+                runnable
+            ]
+        })
     end
     def runnable
         return { name => body }
