@@ -2,8 +2,8 @@ require 'mysql2'
 
 # Get this values from /etc/oned.conf
 $db = {
-    :username => 'root', :password => 'opennebula', 
-    :host => 'localhost', :database => 'opennebula' }
+    :username => , :password => , 
+    :host => , :database => 'opennebula' }
 
 =begin
  CREATE TABLE ansible_playbook (

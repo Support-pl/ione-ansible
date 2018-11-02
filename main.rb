@@ -3,8 +3,11 @@
 ########################################################
 
 puts 'Initializing Ansible constants'
+# Hostname or IP-address of host where ansible installed
 ANSIBLE_HOST = CONF['AnsibleServer']['host']
+# Ansible-host SSH-port
 ANSIBLE_HOST_PORT = CONF['AnsibleServer']['port']
+# SSH user to user
 ANSIBLE_HOST_USER = CONF['AnsibleServer']['user']
 require 'net/ssh'
 require 'net/sftp'
@@ -14,6 +17,18 @@ require "#{ROOT}/modules/ansible/db.rb"
 puts 'Extending handler class by AnsibleController'
 
 class IONe
+    # Runs given playbook on given host
+    # @param [Hash] params - Parameters for Ansible execution
+    # @option params [String] host - hostname or IP-address of VM where to run playbook in host:port format
+    # @option params [Array] services - services to run on VM
+    # @return [200]
+    # @example
+    #   {
+    #     'host' => '127.0.0.1:22',
+    #     'services' => [
+    #       'playbook0' => 'playbook0 body',
+    #       'playbook1' => 'playbook1 body'
+    #     ]
     def AnsibleController(params)
         LOG_DEBUG params.merge!({:method => __method__.to_s}).debug_out
         host, playbooks = params['host'], params['services']
@@ -70,4 +85,70 @@ class IONe
         end
         return 200
     end
+    
+    # @!group Ansible
+    
+    # Creates playbook
+    # @param [Hash] params - Parameters for new playbook
+    # @option params [String] name - (Mandatory)
+    # @option params [String] description - (Optional)
+    # @option params [String] body - (Mandatory)
+    # @option params [String] extradata - You may store here additional data, such as supported OS (Optional)
+    # @return [Fixnum] new playbook id
+    def CreateAnsiblePlaybook args = {}
+        AnsiblePlaybook.new(args.to_sym!).id
+    end
+    # Returns playbook from DB by id
+    # @param [Fixnum] id - Playbook id in DB
+    # @return [Hash] Playbook data
+    def GetAnsiblePlaybook id
+        AnsiblePlaybook.new(id:id).to_hash
+    end
+    # Updates playbook using given data by id
+    # @param [Hash] args - id and keys for updates
+    # @option params [Fixnum] id - ID of playbook to update (Mandatory)
+    # @option params [String] name
+    # @option params [String] description
+    # @option params [String] body
+    # @option params [String] extradata
+    def UpdateAnsiblePlaybook args = {}
+        ap = AnsiblePlaybook.new id:args.delete('id')
+        args.each do | key, value |
+            ap.send(key + '=', value)
+        end
+        ap.update
+    end
+    # Deletes playbook from DB by id
+    # @param [Fixnum] id
+    # @return [NilClass]
+    def DeleteAnsiblePlaybook id
+        AnsiblePlaybook.new(id:id).delete
+    end
+    # Returns variables from playbook(from vars section in playbook body)
+    # @param [Fixnum] id
+    # @return [Hash] Variables with default values
+    def GetAnsiblePlaybookVariables id
+        AnsiblePlaybook.new(id:id).vars        
+    end
+    # Returns playbook in AnsibleController acceptable form
+    # @param [Fixnum] id
+    # @return [Hash]
+    def GetAnsiblePlaybook_ControllerRunnable id
+        AnsiblePlaybook.new(id:id).runnable
+    end
+    # Returns all playbooks from DB
+    # @return [Array<Hash>]
+    def ListAnsiblePlaybooks
+        AnsiblePlaybook.list
+    end
+    # Runs given playbook at given host with given variables
+    # @param [Fixnum] id
+    # @param [String] host - where ti run playbook in hostname:port format
+    # @param [Hash] vars - variables values to fill playbook with, where key is variable name
+    # @return [200]
+    def RunAnsiblePlaybook id, host, vars = {}
+        AnsiblePlaybook.new(id:id).run host, vars
+    end
+
+    # @!endgroup
 end
