@@ -102,7 +102,7 @@ class IONe
     # @param [Fixnum] id - Playbook id in DB
     # @return [Hash] Playbook data
     def GetAnsiblePlaybook id
-        AnsiblePlaybook.new(id:id).to_hash
+        return { "ANSIBLE" => AnsiblePlaybook.new(id:id).to_hash }
     end
     # Updates playbook using given data by id
     # @param [Hash] args - id and keys for updates

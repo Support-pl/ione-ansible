@@ -8,6 +8,8 @@ $db = {
 =begin
  CREATE TABLE ansible_playbook (
    id int NOT NULL AUTO_INCREMENT UNIQUE,
+   uid int,
+   gid int,
    name varchar(128) NOT NULL UNIQUE,
    description varchar(2048),
    body TEXT not null,
@@ -28,16 +30,17 @@ def db
 end
 
 class AnsiblePlaybook
-    FIELDS = %w(name description body extra_data)
+    FIELDS = %w(uid gid name description body extra_data)
     TABLE = 'ansible_playbook'
 
     attr_reader :id
-    attr_accessor :name, :description, :body, :extra_data
+    attr_accessor :uid, :gid, :name, :description, :body, :extra_data
 
     def initialize **args
         args.to_s!
         if args['id'].nil? then
-            @name, @description, @body, @extra_data = args.get *FIELDS
+            @uid, @gid, @name, @description, @body, @extra_data = args.get *FIELDS
+            @uid, @gid = @uid || 0, @gid || 0
             allocate
         else
             begin
@@ -51,6 +54,8 @@ class AnsiblePlaybook
     end
     def sync
         @id,
+        @uid,
+        @gid,
         @name,
         @description,
         @body,
@@ -114,7 +119,7 @@ class AnsiblePlaybook
     def allocate
         db do | db |
             db.query(
-                "INSERT INTO #{AnsiblePlaybook::TABLE} (#{AnsiblePlaybook::FIELDS.join(', ')}) VALUES ('#{@name}', '#{@description}', '#{@body}', '#{@extra}')"
+                "INSERT INTO #{AnsiblePlaybook::TABLE} (#{AnsiblePlaybook::FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body}', '#{@extra}')"
             )
             @id = db.query( "SELECT id FROM #{AnsiblePlaybook::TABLE}" ).to_a.last['id']
         end
