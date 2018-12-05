@@ -117,10 +117,11 @@ get '/ansible' do
       r error: e.message, backtrace: e.backtrace
    end
 end
+
 post '/ansible' do
    begin
       data = JSON.parse(@request_body)
-      r response: AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id
+      r response: { :id => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }
    rescue => e
       @one_user.info!
       r error: e.message, backtrace: e.backtrace
