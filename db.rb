@@ -63,16 +63,16 @@ class AnsiblePlaybook
     end
 
     def delete
-        db.query(
-            "DELETE FROM #{AnsiblePlaybook::TABLE} WHERE id=#{@id}"
-        )
+        db do |db|
+            db.query( "DELETE FROM #{AnsiblePlaybook::TABLE} WHERE id=#{@id}" )
+        end
         nil
     end
     def update
-        AnsiblePlaybook::FIELDS.each do | key |
-            db.query(
-                "UPDATE #{AnsiblePlaybook::TABLE} SET #{key}='#{send(key)}' WHERE id=#{@id}"
-            )
+        FIELDS.each do | key |
+            db do |db|
+                db.query( "UPDATE #{AnsiblePlaybook::TABLE} SET #{key}='#{key == 'extra_data' ? JSON.generate(send(key)) : send(key)}' WHERE id=#{@id}" )
+            end
         end
         nil
     end
@@ -88,13 +88,13 @@ class AnsiblePlaybook
         end
     end
 
-    def run host, vars:nil, password:nil, ssh_key:nil
+    def run host, vars:nil, password:nil, ssh_key:nil, ione:IONe.new($client)
         unless vars.nil? then
             body = YAML.load @body
             body['vars'].merge! vars
             @body = YAML.dump body
         end
-        IONe.new($client).AnsibleController({
+        ione.AnsibleController({
             'host' => host,
             'services' => [
                 runnable
@@ -109,9 +109,13 @@ class AnsiblePlaybook
     end
 
     def self.list
-        db.query(
-            "SELECT * FROM #{AnsiblePlaybook::TABLE}"
-        ).to_a
+        result = db do |db| 
+            db.query( "SELECT * FROM #{TABLE}" ).to_a
+        end
+        result.size.times do | i |
+            result[i]['extra_data'] = JSON.parse result[i]['extra_data']
+        end
+        result
     end
 
     private
@@ -119,14 +123,16 @@ class AnsiblePlaybook
     def allocate
         db do | db |
             db.query(
-                "INSERT INTO #{AnsiblePlaybook::TABLE} (#{AnsiblePlaybook::FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body}', '#{@extra}')"
+                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body}', '#{JSON.generate(@extra_data)}')"
             )
-            @id = db.query( "SELECT id FROM #{AnsiblePlaybook::TABLE}" ).to_a.last['id']
+            @id = db.query( "SELECT id FROM #{TABLE}" ).to_a.last['id']
         end
     end
     def get_me id = @id
-        db.query(
-            "SELECT * FROM #{AnsiblePlaybook::TABLE} WHERE id=#{id}"
-        ).to_a.last
+        me = db do |db|
+            db.query( "SELECT * FROM #{TABLE} WHERE id=#{id}" ).to_a.last
+        end
+        me['extra_data'] = JSON.parse me['extra_data']
+        me
     end
 end
