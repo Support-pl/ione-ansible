@@ -31,7 +31,7 @@ end
 
 class AnsiblePlaybook
 
-   attr_reader    :method
+   attr_reader    :method, :id
    attr_accessor  :body
 
    RIGHTS = {
@@ -48,17 +48,28 @@ class AnsiblePlaybook
    def initialize id:nil, data:{}, user:nil
       @user, @method, @params = user, data['method'], data['params']
       if id.nil? then
-         # Create PB here
-      else
-         @body = IONe.GetAnsiblePlaybook(id)
+         begin
+            check =  @params['name'].nil?                      ||
+                     @params['body'].nil?                      ||
+                     @params['extra_data'].nil?                ||
+                     @params['extra_data']['PERMISSIONS'].nil?
+         rescue
+            raise ParamsError.new
+         end
+         raise ParamsError.new if check
+         raise NoAccessError.new(2) unless user.groups.include? 0
+         @user.info!
+         id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid}))
       end
+
+      @body = IONe.GetAnsiblePlaybook(@id = id) # Generate json at extra_data before save
       @permissions = Array.new(3) {|uma| ansible_check_permissions(@body, @user, uma) }
 
-      raise AnsiblePlaybook::NoAccessError.new(0) unless @permissions[0]
+      raise NoAccessError.new(0) unless @permissions[0]
    end
    def call
       access = RIGHTS[method]
-      raise AnsiblePlaybook::NoAccessError.new(access) unless @permissions[access]
+      raise NoAccessError.new(access) unless @permissions[access]
       send(@method)
    end
    def chown
@@ -98,6 +109,15 @@ get '/ansible' do
          }
       })
    rescue => e
+      r error: e.message, backtrace: e.backtrace
+   end
+end
+post '/ansible' do
+   begin
+      data = JSON.parse(@request_body)
+      r response: AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id
+   rescue => e
+      @one_user.info!
       r error: e.message, backtrace: e.backtrace
    end
 end
