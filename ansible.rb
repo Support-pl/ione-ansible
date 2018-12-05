@@ -85,7 +85,12 @@ class AnsiblePlaybook
          @action = AnsiblePlaybook::ACTIONS[action]
       end
       def message
-         "Not enough rights to perform action: #{@action}"
+         "Not enough rights to perform action: #{@action}!"
+      end
+   end
+   class ParamsError < StandardError
+      def message
+         "Some arguments are missing or nil!"
       end
    end
 end
