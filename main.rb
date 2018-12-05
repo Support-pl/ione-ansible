@@ -89,11 +89,13 @@ class IONe
     # @!group Ansible
     
     # Creates playbook
-    # @param [Hash] params - Parameters for new playbook
-    # @option params [String] name - (Mandatory)
-    # @option params [String] description - (Optional)
-    # @option params [String] body - (Mandatory)
-    # @option params [String] extradata - You may store here additional data, such as supported OS (Optional)
+    # @param [Hash] args - Parameters for new playbook
+    # @option args [String] name - (Mandatory)
+    # @option args [Integer] uid - Owner id (Mandatory)
+    # @option args [Integer] gid - Group id (Mandatory)
+    # @option args [String] description - (Optional)
+    # @option args [String] body - (Mandatory)
+    # @option args [String] extra_data - You may store here additional data, such as supported OS (Optional)
     # @return [Fixnum] new playbook id
     def CreateAnsiblePlaybook args = {}
         AnsiblePlaybook.new(args.to_sym!).id
@@ -106,11 +108,13 @@ class IONe
     end
     # Updates playbook using given data by id
     # @param [Hash] args - id and keys for updates
-    # @option params [Fixnum] id - ID of playbook to update (Mandatory)
-    # @option params [String] name
-    # @option params [String] description
-    # @option params [String] body
-    # @option params [String] extradata
+    # @option args [Fixnum] id - ID of playbook to update (Mandatory)
+    # @option args [String] name
+    # @option args [Integer] uid - Owner id
+    # @option args [Integer] gid - Group id
+    # @option args [String] description
+    # @option args [String] body
+    # @option args [String] extra_data
     def UpdateAnsiblePlaybook args = {}
         ap = AnsiblePlaybook.new id:args.delete('id')
         args.each do | key, value |
