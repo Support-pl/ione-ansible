@@ -82,7 +82,7 @@ class AnsiblePlaybook
         begin
             body['vars']
         rescue => e
-            if e.message.split(':').first = 'TypeError' then
+            if e.message.split(':').first == 'TypeError' then
                 raise "SyntaxError: Check if here is now hyphens at the playbook beginning. Playbook parse result should be Hash"
             end
         end

@@ -72,6 +72,15 @@ class AnsiblePlaybook
       raise NoAccessError.new(access) unless @permissions[access]
       send(@method)
    end
+
+   def update
+      @params.each do |key, value|
+         @body[key] = value
+      end
+
+      IONe.UpdateAnsiblePlaybook(@body)
+   end
+
    def chown
       IONe.UpdateAnsiblePlaybook({ "id" => @body['id'], "uid" => @params })
    end
