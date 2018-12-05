@@ -80,12 +80,19 @@ class AnsiblePlaybook
 
       IONe.UpdateAnsiblePlaybook @body
    end
+   def delete
+      IONe.DeleteAnsiblePlaybook @id
+   end
 
    def chown
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "uid" => @params )
    end
    def chgrp
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params )
+   end
+
+   def vars
+      IONe.GetAnsiblePlaybookVariables @id
    end
 
    class NoAccessError < StandardError
@@ -141,6 +148,14 @@ get '/ansible/:id' do | id |
    begin
       pb = AnsiblePlaybook.new(id:id, user:@one_user)
       r ANSIBLE: pb.body
+   rescue => e
+      r error: e.message, backtrace: e.backtrace
+   end
+end
+get '/ansible/:id/vars' do | id |
+   begin
+      pb = AnsiblePlaybook.new(id:id, data:{'method' => 'vars'}, user:@one_user)
+      r vars: pb.call
    rescue => e
       r error: e.message, backtrace: e.backtrace
    end
