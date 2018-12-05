@@ -62,7 +62,7 @@ class AnsiblePlaybook
          id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid}))
       end
 
-      @body = IONe.GetAnsiblePlaybook(@id = id) # Generate json at extra_data before save
+      @body = IONe.GetAnsiblePlaybook(@id = id)
       @permissions = Array.new(3) {|uma| ansible_check_permissions(@body, @user, uma) }
 
       raise NoAccessError.new(0) unless @permissions[0]
@@ -131,7 +131,7 @@ end
 get '/ansible/:id' do | id |
    begin
       pb = AnsiblePlaybook.new(id:id, data:{}, user:@one_user)
-      r response: pb.body
+      r ANSIBLE: pb.body
    rescue => e
       r error: e.message, backtrace: e.backtrace
    end
