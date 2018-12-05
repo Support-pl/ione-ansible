@@ -8,7 +8,7 @@ end
 
 def ansible_check_permissions pb, u, uma
    u.info!
-   perm = JSON.parse(pb['extra_data'])['PERMISSIONS'].split('')
+   perm = pb['extra_data']['PERMISSIONS'].split('')
    mod = perm.values_at( *Array.new(3){ |i| uma + 3 * i }).map{| value | value == '1' ? true : false }
    return (
       (  u.id == pb['uid'] && mod[0]            ) ||
