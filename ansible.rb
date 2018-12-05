@@ -78,14 +78,14 @@ class AnsiblePlaybook
          @body[key] = value
       end
 
-      IONe.UpdateAnsiblePlaybook(@body)
+      IONe.UpdateAnsiblePlaybook @body
    end
 
    def chown
-      IONe.UpdateAnsiblePlaybook({ "id" => @body['id'], "uid" => @params })
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "uid" => @params )
    end
    def chgrp
-      IONe.UpdateAnsiblePlaybook({ "id" => @body['id'], "gid" => @params })
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params )
    end
 
    class NoAccessError < StandardError
@@ -139,7 +139,7 @@ end
 
 get '/ansible/:id' do | id |
    begin
-      pb = AnsiblePlaybook.new(id:id, data:{}, user:@one_user)
+      pb = AnsiblePlaybook.new(id:id, user:@one_user)
       r ANSIBLE: pb.body
    rescue => e
       r error: e.message, backtrace: e.backtrace
