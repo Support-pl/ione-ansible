@@ -36,7 +36,7 @@ class IONe
         ip, err = host.split(':').first, ""
         Thread.new do
             playbooks.each do |service, playbook|
-                installid = id_gen().crypt(service[0..3]).delete('!@#$%^&*()_+:"\'.,\/\\')
+                installid = id_gen.crypt(service.delete(' ')[0..3]).delete('!@#$%^&*()_+:"\'.,\/\\')
                 LOG "#{service} should be installed on #{ip}, installation ID is: #{installid}", "AnsibleController"
                 begin
                     LOG 'Connecting to Ansible', 'AnsibleController'            
@@ -54,14 +54,8 @@ class IONe
                         LOG 'PB and hosts have been generated', 'AnsibleController' 
                         err = "Line #{__LINE__ + 1}: Error while executing playbook occured"
                         LOG 'Executing PB', 'AnsibleController' 
-                        $pbexec = ssh.exec!("ansible-playbook /tmp/#{installid}.yml -i /tmp/#{installid}.ini").split(/\n/)
+                        pbexec = ssh.exec!("ansible-playbook /tmp/#{installid}.yml -i /tmp/#{installid}.ini")
                         LOG 'PB has been Executed', 'AnsibleController' 
-                        # def status(regexp)
-                            # return $pbexec.last[regexp].split(/=/).last.to_i
-                        # end
-                        LOG_DEBUG 'PB execution result:'
-                        LOG_DEBUG $pbexec.join("\n")
-                        # LOG 'Creating log-ticket', 'AnsibleController' 
                         LOG "#{service} installed on #{ip}", "AnsibleController"
                         LOG 'Wiping hosts and pb files', 'AnsibleController' 
                         ssh.sftp.remove!("/tmp/#{installid}.ini")
@@ -137,8 +131,8 @@ class IONe
     # Returns playbook in AnsibleController acceptable form
     # @param [Fixnum] id
     # @return [Hash]
-    def GetAnsiblePlaybook_ControllerRunnable id
-        AnsiblePlaybook.new(id:id).runnable
+    def GetAnsiblePlaybook_ControllerRunnable id, vars = {}
+        AnsiblePlaybook.new(id:id).runnable vars
     end
     # Returns all playbooks from DB
     # @return [Array<Hash>]
