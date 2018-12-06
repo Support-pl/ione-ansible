@@ -78,7 +78,7 @@ class AnsiblePlaybook
     end
     def vars
         sync
-        body = YAML.load @body
+        body = YAML.load(@body).first
         begin
             body['vars']
         rescue => e
@@ -91,7 +91,7 @@ class AnsiblePlaybook
     def run host, vars:nil, password:nil, ssh_key:nil, ione:IONe.new($client)
         unless vars.nil? then
             body = YAML.load @body
-            body['vars'].merge! vars
+            body[0]['vars'].merge! vars
             @body = YAML.dump body
         end
         ione.AnsibleController({
@@ -101,8 +101,13 @@ class AnsiblePlaybook
             ]
         })
     end
-    def runnable
-        return { name => body }
+    def runnable vars={}
+        unless vars == {} then
+            body = YAML.load @body
+            body[0]['vars'].merge! vars
+            @body = YAML.dump body
+        end
+        return { @name => @body }
     end
     def to_hash
         get_me
@@ -123,7 +128,7 @@ class AnsiblePlaybook
     def allocate
         db do | db |
             db.query(
-                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body}', '#{JSON.generate(@extra_data)}')"
+                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body.gsub("'", "\'")}', '#{JSON.generate(@extra_data)}')"
             )
             @id = db.query( "SELECT id FROM #{TABLE}" ).to_a.last['id']
         end
