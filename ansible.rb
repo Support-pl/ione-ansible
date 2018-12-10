@@ -97,6 +97,9 @@ class AnsiblePlaybook
    def vars
       IONe.GetAnsiblePlaybookVariables @id
    end
+   def to_process
+      IONe.AnsiblePlaybookToProcess( "id" => @body['id'], hosts => @params['hosts'], 'default', @params['vars'] )
+   end
 
    class NoAccessError < StandardError
       def initialize action
