@@ -35,11 +35,11 @@ class AnsiblePlaybook
    attr_accessor  :body
 
    RIGHTS = {
-      'chown'        => 1,
-      'chgrp'        => 1,
-      'chmod'        => 1,
+      'chown'        => 2,
+      'chgrp'        => 2,
+      'chmod'        => 2,
       'run'          => 0,
-      'update'       => 2,
+      'update'       => 1,
       'delete'       => 2,
       'vars'         => 0  }
 
@@ -89,6 +89,9 @@ class AnsiblePlaybook
    end
    def chgrp
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params )
+   end
+   def chmod
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => extra_data.merge("PERMISSIONS" => @params) )
    end
 
    def vars
