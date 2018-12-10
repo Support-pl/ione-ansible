@@ -45,27 +45,29 @@ class AnsiblePlaybook
 
    ACTIONS = ['USE', 'MANAGE', 'ADMIN']
 
-   def initialize id:nil, data:{}, user:nil
-      @user, @method, @params = user, data['method'], data['params']
+   def initialize id:nil, data:{'action' => {}}, user:nil
+      @user = user
       if id.nil? then
+         @params = data
          begin
             check =  @params['name'].nil?                      ||
                      @params['body'].nil?                      ||
                      @params['extra_data'].nil?                ||
                      @params['extra_data']['PERMISSIONS'].nil?
          rescue
-            raise ParamsError.new
+            raise ParamsError.new @params
          end
          raise ParamsError.new if check
          raise NoAccessError.new(2) unless user.groups.include? 0
          @user.info!
-         id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid}))
+         @id = id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid}))
+      else
+         @method, @params = data['action']['perform'], data['action']['params']
+         @body = IONe.GetAnsiblePlaybook(@id = id)
+         @permissions = Array.new(3) {|uma| ansible_check_permissions(@body, @user, uma) }
+         
+         raise NoAccessError.new(0) unless @permissions[0]
       end
-
-      @body = IONe.GetAnsiblePlaybook(@id = id)
-      @permissions = Array.new(3) {|uma| ansible_check_permissions(@body, @user, uma) }
-
-      raise NoAccessError.new(0) unless @permissions[0]
    end
    def call
       access = RIGHTS[method]
@@ -85,20 +87,21 @@ class AnsiblePlaybook
    end
 
    def chown
-      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "uid" => @params )
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "uid" => @params['owner_id'] ) unless @params['owner_id'] == '-1'
+      chgrp unless @params['group_id'] == '-1'
    end
    def chgrp
-      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params )
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params['group_id'] )
    end
    def chmod
-      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => extra_data.merge("PERMISSIONS" => @params) )
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => @body['extra_data'].merge("PERMISSIONS" => @params) )
    end
 
    def vars
       IONe.GetAnsiblePlaybookVariables @id
    end
    def to_process
-      IONe.AnsiblePlaybookToProcess( "id" => @body['id'], hosts => @params['hosts'], 'default', @params['vars'] )
+      IONe.AnsiblePlaybookToProcess( @body['id'], @params['hosts'], 'default', @params['vars'] )
    end
 
    class NoAccessError < StandardError
@@ -111,8 +114,12 @@ class AnsiblePlaybook
       end
    end
    class ParamsError < StandardError
+      def initialize params
+         super()
+         @params = @params
+      end
       def message
-         "Some arguments are missing or nil!"
+         "Some arguments are missing or nil! Params:\n#{@params.inspect}"
       end
    end
 end
@@ -130,6 +137,12 @@ get '/ansible' do
    begin
       pool = IONe.ListAnsiblePlaybooks
       pool.delete_if {|pb| !ansible_check_permissions(pb, @one_user, 0) }
+      pool.map! do | pb |
+         user, group =  OpenNebula::User.new_with_id( pb['uid'], @one_client),
+                        OpenNebula::Group.new_with_id( pb['gid'], @one_client)
+         user.info!; group.info!
+         pb.merge('uname' => user.name, 'gname' => group.name)
+      end
       r(**{ 
          :ANSIBLE_POOL => {
             :ANSIBLE => pool
@@ -146,6 +159,19 @@ post '/ansible' do
       r response: { :id => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }
    rescue => e
       @one_user.info!
+      r error: e.message, backtrace: e.backtrace, data:data
+   end
+end
+
+delete '/ansible/:id' do |id|
+   begin
+      data = {'action' => {'perform' => 'delete', 'params' => nil}}
+      pb = AnsiblePlaybook.new(id:id, data:data, user:@one_user)
+
+      r response: pb.call
+   rescue JSON::ParserError
+      r error: "Broken data received, unable to parse."
+   rescue => e
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -153,7 +179,10 @@ end
 get '/ansible/:id' do | id |
    begin
       pb = AnsiblePlaybook.new(id:id, user:@one_user)
-      r ANSIBLE: pb.body
+      user, group =  OpenNebula::User.new_with_id( pb.body['uid'], @one_client),
+                     OpenNebula::Group.new_with_id( pb.body['gid'], @one_client)
+      user.info!; group.info!
+      r ANSIBLE: pb.body.merge('uname' => user.name, 'gname' => group.name)
    rescue => e
       r error: e.message, backtrace: e.backtrace
    end
