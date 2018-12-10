@@ -160,6 +160,8 @@ end
 
 class AnsiblePlaybookProcess
 
+    attr_reader :id, :install_id
+
     FIELDS  = %w(uid playbook_id install_id create_time start_time end_time status log hosts vars)
     TABLE   = 'ansible_playbook_process'
     

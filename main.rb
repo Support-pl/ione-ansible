@@ -139,14 +139,39 @@ class IONe
     def ListAnsiblePlaybooks
         AnsiblePlaybook.list
     end
+    # Creates Process instance with given playbook, host and variables
+    # @param [Fixnum] id - Playbook ID
+    # @param [Fixnum] uid - User ID who initialized playbook
+    # @param [Array<String>] hosts - Array of hosts where to run playbook
+    # @param [Hash] vars - Hash with playbook variables values
+    
+    def AnsiblePlaybookToProcess id, uid, hosts = [], vars = {}, auth = 'default'
+        AnsiblePlaybookProcess.new(
+            playbook_id: id,
+            uid: uid,
+            hosts: hosts,
+            vars: vars,
+            auth: auth
+        ).id
+    end
     # Runs given playbook at given host with given variables
-    # @param [Fixnum] id
+    # @param [Fixnum] id - Process ID
     # @param [String] host - where ti run playbook in hostname:port format
     # @param [Hash] vars - variables values to fill playbook with, where key is variable name
-    # @return [200]
-    def RunAnsiblePlaybook id, host, vars = {}
-        AnsiblePlaybook.new(id:id).run host, vars
+    # @return [Fixnum] Process ID
+    def RunAnsiblePlaybookProcess id
+        AnsiblePlaybookProcess.new(proc_id:id).run
     end
+    def AnsiblePlaybookProcessStatus id
+        AnsiblePlaybookProcess.new(proc_id:id).status
+    end
+    def AnsiblePlaybookProcessInfo id
+        AnsiblePlaybookProcess.new(proc_id:id).to_hash
+    end
+    def ListAnsiblePlaybookProcesses
+        AnsiblePlaybookProcess.list
+    end
+
 
     # @!endgroup
 end
