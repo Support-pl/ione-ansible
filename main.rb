@@ -139,6 +139,9 @@ class IONe
     def ListAnsiblePlaybooks
         AnsiblePlaybook.list
     end
+    def CheckAnsiblePlaybookSyntax body
+        AnsiblePlaybook.check_syntax body
+    end
     # Creates Process instance with given playbook, host and variables
     # @param [Fixnum] id - Playbook ID
     # @param [Fixnum] uid - User ID who initialized playbook

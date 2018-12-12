@@ -34,13 +34,17 @@ class AnsiblePlaybook
     TABLE = 'ansible_playbook'
 
     attr_reader :id
-    attr_accessor :uid, :gid, :name, :description, :body, :extra_data
+    attr_accessor :uid, :gid, :description, :body, :extra_data
 
     def initialize **args
         args.to_s!
         if args['id'].nil? then
             @uid, @gid, @name, @description, @body, @extra_data = args.get *FIELDS
             @uid, @gid = @uid || 0, @gid || 0
+
+            r, msg = self.class.check_syntax(@body)
+            raise RuntimeError.new(msg) unless r
+
             allocate
         else
             begin
@@ -69,6 +73,9 @@ class AnsiblePlaybook
         nil
     end
     def update
+        r, msg = self.class.check_syntax(@body)
+        raise RuntimeError.new(msg) unless r
+
         FIELDS.each do | key |
             db do |db|
                 db.query( "UPDATE #{AnsiblePlaybook::TABLE} SET #{key}='#{key == 'extra_data' ? JSON.generate(send(key)) : send(key)}' WHERE id=#{@id}" )
@@ -79,16 +86,30 @@ class AnsiblePlaybook
     def vars
         sync
         body = YAML.load(@body).first
-        begin
             body['vars']
-        rescue => e
-            if e.message.split(':').first == 'TypeError' then
-                raise "SyntaxError: Check if here is now hyphens at the playbook beginning. Playbook parse result should be Hash"
-            end
+    rescue => e
+        if e.message.split(':').first == 'TypeError' then
+            raise "SyntaxError: Check if here is now hyphens at the playbook beginning. Playbook parse result should be Hash"
         end
     end
 
+    def self.check_syntax body
+        body = YAML.load(body)
+        raise AnsiblePlaybookSyntaxError.new( "Playbook must be array (body should start from ' - ')" ) unless body.class == Array
+        raise AnsiblePlaybookSyntaxError.new( "hosts must be equal to <%group%>" ) unless body.first['hosts'] == "<%group%>"
+        return true, ""
+    rescue Psych::SyntaxError => e
+        return false, e.message
+    rescue AnsiblePlaybookSyntaxError => e
+        return false, e.message
+    rescue => e
+        return false, 'Unknown error: ' + e.message
+    end
+
     def run host, vars:nil, password:nil, ssh_key:nil, ione:IONe.new($client)
+        r, msg = self.class.check_syntax(@body)
+        raise RuntimeError.new(msg) unless r
+        
         unless vars.nil? then
             body = YAML.load @body
             body[0]['vars'].merge! vars
@@ -102,6 +123,9 @@ class AnsiblePlaybook
         })
     end
     def runnable vars={}
+        r, msg = self.class.check_syntax(@body)
+        raise RuntimeError.new(msg) unless r
+
         unless vars == {} then
             body = YAML.load @body
             body[0]['vars'].merge! vars
@@ -121,6 +145,16 @@ class AnsiblePlaybook
             result[i]['extra_data'] = JSON.parse result[i]['extra_data']
         end
         result
+    end
+
+    class AnsiblePlaybookSyntaxError < StandardError
+        def initialize msg
+            super
+            @msg = msg
+        end
+        def message
+            @msg
+        end
     end
 
     private
