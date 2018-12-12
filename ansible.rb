@@ -41,7 +41,8 @@ class AnsiblePlaybook
       'run'          => 0,
       'update'       => 1,
       'delete'       => 2,
-      'vars'         => 0  }
+      'vars'         => 0,
+      'clone'        => 0  }
 
    ACTIONS = ['USE', 'MANAGE', 'ADMIN']
 
@@ -75,6 +76,9 @@ class AnsiblePlaybook
       send(@method)
    end
 
+   def clone
+      
+   end
    def update
       @params.each do |key, value|
          @body[key] = value
