@@ -98,6 +98,7 @@ class AnsiblePlaybook
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "gid" => @params['group_id'] )
    end
    def chmod
+      raise ParamsError.new(@params) if @params.nil?
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => @body['extra_data'].merge("PERMISSIONS" => @params) )
    end
 
@@ -206,6 +207,22 @@ post '/ansible/:id/action' do | id |
       pb = AnsiblePlaybook.new(id:id, data:data, user:@one_user)
 
       r response: pb.call
+   rescue JSON::ParserError
+      r error: "Broken data received, unable to parse."
+   rescue => e
+      r error: e.message, backtrace: e.backtrace
+   end
+end
+
+post '/ansible/:action' do | action |
+   data = JSON.parse(@request_body)
+
+   begin
+      if action == 'check_syntax' then
+         r response: IONe.CheckAnsiblePlaybookSyntax( data['body'])
+      else
+         r response: "Action is not defined"
+      end
    rescue JSON::ParserError
       r error: "Broken data received, unable to parse."
    rescue => e
