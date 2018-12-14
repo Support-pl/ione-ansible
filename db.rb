@@ -10,7 +10,7 @@ $db = {
    id int NOT NULL AUTO_INCREMENT UNIQUE,
    uid int,
    gid int,
-   name varchar(128) NOT NULL UNIQUE,
+   name varchar(128) NOT NULL,
    description varchar(2048),
    body TEXT not null,
    extra_data TEXT,
@@ -34,7 +34,7 @@ class AnsiblePlaybook
     TABLE = 'ansible_playbook'
 
     attr_reader :id
-    attr_accessor :uid, :gid, :description, :body, :extra_data
+    attr_accessor :name, :uid, :gid, :description, :body, :extra_data
 
     def initialize **args
         args.to_s!
