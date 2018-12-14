@@ -27,6 +27,15 @@ class String
          false
       end
    end
+   def is_zmq_error?
+      include? 'Server returned error (32603)'
+   end
+   def crop_zmq_error!
+      self.slice! self.split("\n").last
+      self.slice! 'Server returned error (32603): '
+      self.delete! "\n"
+      self
+   end
 end
 
 class AnsiblePlaybook
@@ -58,7 +67,7 @@ class AnsiblePlaybook
          rescue
             raise ParamsError.new @params
          end
-         raise ParamsError.new if check
+         raise ParamsError.new(@params) if check
          raise NoAccessError.new(2) unless user.groups.include? 0
          @user.info!
          @id = id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid}))
@@ -154,6 +163,8 @@ get '/ansible' do
          }
       })
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -163,6 +174,8 @@ post '/ansible' do
       data = JSON.parse(@request_body)
       r response: { :id => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       @one_user.info!
       r error: e.message, backtrace: e.backtrace, data:data
    end
@@ -177,6 +190,8 @@ delete '/ansible/:id' do |id|
    rescue JSON::ParserError
       r error: "Broken data received, unable to parse."
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -189,6 +204,8 @@ get '/ansible/:id' do | id |
       user.info!; group.info!
       r ANSIBLE: pb.body.merge('uname' => user.name, 'gname' => group.name)
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -197,6 +214,8 @@ get '/ansible/:id/vars' do | id |
       pb = AnsiblePlaybook.new(id:id, data:{'method' => 'vars'}, user:@one_user)
       r vars: pb.call
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -210,6 +229,8 @@ post '/ansible/:id/action' do | id |
    rescue JSON::ParserError
       r error: "Broken data received, unable to parse."
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
@@ -226,6 +247,8 @@ post '/ansible/:action' do | action |
    rescue JSON::ParserError
       r error: "Broken data received, unable to parse."
    rescue => e
+      msg = e.message
+      msg.crop_zmq_error! if msg.is_zmq_error?
       r error: e.message, backtrace: e.backtrace
    end
 end
