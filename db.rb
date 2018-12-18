@@ -10,6 +10,7 @@ $db = {
    id int NOT NULL AUTO_INCREMENT UNIQUE,
    uid int,
    gid int,
+   create_time int,
    name varchar(128) NOT NULL,
    description varchar(2048),
    body TEXT not null,
@@ -30,21 +31,22 @@ def db
 end
 
 class AnsiblePlaybook
-    FIELDS = %w(uid gid name description body extra_data)
+    FIELDS = %w(uid gid name description body extra_data create_time)
     TABLE = 'ansible_playbook'
 
     attr_reader :id
-    attr_accessor :name, :uid, :gid, :description, :body, :extra_data
+    attr_accessor :name, :uid, :gid, :description, :body, :extra_data, :create_time
 
     def initialize **args
         args.to_s!
         if args['id'].nil? then
             @uid, @gid, @name, @description, @body, @extra_data = args.get *FIELDS
-            @uid, @gid = @uid || 0, @gid || 0
+            @uid, @gid, @extra_data = @uid || 0, @gid || 0, @extra_data || {}
 
             r, msg = self.class.check_syntax(@body)
             raise RuntimeError.new(msg) unless r
 
+            @create_time = Time.now.to_i
             allocate
         else
             begin
@@ -63,7 +65,8 @@ class AnsiblePlaybook
         @name,
         @description,
         @body,
-        @extra_data = get_me(@id).get *(['id'] + FIELDS)
+        @extra_data,
+        @create_time = get_me(@id).get *(['id'] + FIELDS)
     end
 
     def delete
@@ -78,6 +81,7 @@ class AnsiblePlaybook
 
         FIELDS.each do | key |
             db do |db|
+                next if key == 'create_time'
                 db.query( "UPDATE #{AnsiblePlaybook::TABLE} SET #{key}='#{key == 'extra_data' ? JSON.generate(send(key)) : send(key)}' WHERE id=#{@id}" )
             end
         end
@@ -162,7 +166,7 @@ class AnsiblePlaybook
     def allocate
         db do | db |
             db.query(
-                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body.gsub("'", "\'")}', '#{JSON.generate(@extra_data)}')"
+                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body.gsub("'", "\'")}', '#{JSON.generate(@extra_data)}', '#{@create_time}')"
             )
             @id = db.query( "SELECT id FROM #{TABLE}" ).to_a.last['id']
         end
@@ -377,5 +381,3 @@ class AnsiblePlaybookProcess
         @vars = JSON.parse @vars
     end
 end
-
-app = AnsiblePlaybookProcess.new playbook_id:23, uid:0, hosts:['185.66.68.11:52222', '185.66.68.114:22', '185.66.69.206:52222'], vars:{'cause_error' => 'false', 'work_time' => 5}, auth:'default'

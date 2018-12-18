@@ -110,6 +110,9 @@ class AnsiblePlaybook
       raise ParamsError.new(@params) if @params.nil?
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => @body['extra_data'].merge("PERMISSIONS" => @params) )
    end
+   def rename
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "name" => @params )
+   end
 
    def vars
       IONe.GetAnsiblePlaybookVariables @id
