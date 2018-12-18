@@ -51,7 +51,8 @@ class AnsiblePlaybook
       'update'       => 1,
       'delete'       => 2,
       'vars'         => 0,
-      'clone'        => 0  }
+      'clone'        => 0,
+      'rename'       => 1  }
 
    ACTIONS = ['USE', 'MANAGE', 'ADMIN']
 
@@ -111,7 +112,7 @@ class AnsiblePlaybook
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "extra_data" => @body['extra_data'].merge("PERMISSIONS" => @params) )
    end
    def rename
-      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "name" => @params )
+      IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "name" => @params['name'] )
    end
 
    def vars
