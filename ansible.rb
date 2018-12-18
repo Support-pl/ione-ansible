@@ -38,6 +38,15 @@ class String
    end
 end
 
+class Hash
+   def duplicate_with_case! to_case = :up
+      self.clone.each do |key, value|
+         self[key.send(to_case.to_s + 'case')] = value
+      end
+      nil
+   end
+end
+
 class AnsiblePlaybook
 
    attr_reader    :method, :id
@@ -161,6 +170,7 @@ get '/ansible' do
          user.info!; group.info!
          pb.merge('uname' => user.name, 'gname' => group.name)
       end
+      pool.map{|playbook| playbook.duplicate_with_case! }
       r(**{ 
          :ANSIBLE_POOL => {
             :ANSIBLE => pool
@@ -206,7 +216,9 @@ get '/ansible/:id' do | id |
       user, group =  OpenNebula::User.new_with_id( pb.body['uid'], @one_client),
                      OpenNebula::Group.new_with_id( pb.body['gid'], @one_client)
       user.info!; group.info!
-      r ANSIBLE: pb.body.merge('uname' => user.name, 'gname' => group.name)
+      pb.body.merge!('uname' => user.name, 'gname' => group.name)
+      pb.body.duplicate_with_case!
+      r ANSIBLE: pb.body
    rescue => e
       msg = e.message
       msg.crop_zmq_error! if msg.is_zmq_error?
