@@ -100,7 +100,13 @@ class AnsiblePlaybook
    end
 
    def clone # Clones Playbook with given id to a new playbook with given name in params
-   #   * * *   #
+      args = @body
+      args.delete('id')
+      IONe.CreateAnsiblePlaybook(
+         args.merge({
+            :name => @params["name"], :uid => @user.id, :gid => @user.gid
+         })
+      )
    end
    def update # Updated Playbook with given keys and values. If params are {"name" => "new_name"}, key "name" will have value "new_name" after Update performed
       @params.each do |key, value| # Changing each key
@@ -134,6 +140,7 @@ class AnsiblePlaybook
    end
    def rename # Renames Playbook
       IONe.UpdateAnsiblePlaybook( "id" => @body['id'], "name" => @params['name'] )
+      nil
    end
 
    def vars # Returns Variabled defined at Playbook body
