@@ -146,7 +146,7 @@ class AnsiblePlaybook
    def vars # Returns Variabled defined at Playbook body
       IONe.GetAnsiblePlaybookVariables @id
    end
-   def to_process # Creates install proccess from given Playbook with given hosts and vars
+   def to_process # Creates install process from given Playbook with given hosts and vars
       IONe.AnsiblePlaybookToProcess( @body['id'], @params['hosts'], 'default', @params['vars'] )
    end
 
@@ -206,7 +206,7 @@ end
 post '/ansible' do # Allocates new playbook
    begin
       data = JSON.parse(@request_body)
-      r response: { :id => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }
+      r response: { :ANSIBLE => {:ID => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }}
    rescue JSON::ParserError # If JSON.parse fails
       r error: "Broken data received, unable to parse."
    rescue => e

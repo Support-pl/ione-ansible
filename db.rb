@@ -1,9 +1,9 @@
 require 'mysql2'
+require 'sequel'
 
 # Get this values from /etc/oned.conf
-$db = {
-    :username => 'root', :password => 'opennebula', 
-    :host => 'localhost', :database => 'opennebula' }
+$DB = Sequel.connect({
+    adapter: :mysql2, user: 'root', password: 'opennebula', database: 'opennebula', host: 'localhost'  })
 
 =begin
  CREATE TABLE ansible_playbook (
@@ -18,21 +18,10 @@ $db = {
    PRIMARY KEY (id) )
 =end
 
-def db
-    db_client = Mysql2::Client.new $db
-    if block_given? then
-        result = yield db_client
-        db_client.close
-        db_client.closed?
-        result
-    else
-        db_client
-    end
-end
-
 class AnsiblePlaybook
     FIELDS = %w(uid gid name description body extra_data create_time)
     TABLE = 'ansible_playbook'
+    DB = $DB[:ansible_playbook]
 
     attr_reader :id
     attr_accessor :name, :uid, :gid, :description, :body, :extra_data, :create_time
@@ -59,32 +48,28 @@ class AnsiblePlaybook
         raise "Unhandlable, id is nil" if @id.nil?
     end
     def sync
-        @id,
-        @uid,
-        @gid,
-        @name,
-        @description,
-        @body,
-        @extra_data,
-        @create_time = get_me(@id).get *(['id'] + FIELDS)
-    end
-
-    def delete
-        db do |db|
-            db.query( "DELETE FROM #{AnsiblePlaybook::TABLE} WHERE id=#{@id}" )
+        get_me.each do |var, value|
+            instance_variable_set('@' + var, value)
         end
+    end
+    
+    def delete
+        DB.where(id: @id).delete
         nil
     end
     def update
         r, msg = self.class.check_syntax(@body)
         raise RuntimeError.new(msg) unless r
-
-        FIELDS.each do | key |
-            db do |db|
-                next if key == 'create_time'
-                db.query( "UPDATE #{AnsiblePlaybook::TABLE} SET #{key}='#{key == 'extra_data' ? JSON.generate(send(key)) : send(key)}' WHERE id=#{@id}" )
-            end
+        
+        args = {}
+        FIELDS.each do | var |
+            next if var == 'create_time'
+            value = instance_variable_get(('@' + var).to_sym)
+            value = var == 'extra_data' ? JSON.generate(value) : value
+            args[var.to_sym] = value.nil? ? '' : value
         end
+        DB.where(id: @id).update( **args )
+
         nil
     end
     def vars
@@ -142,9 +127,8 @@ class AnsiblePlaybook
     end
 
     def self.list
-        result = db do |db| 
-            db.query( "SELECT * FROM #{TABLE}" ).to_a
-        end
+        result = DB.all
+        result.map{ |pb| pb.to_s! }
         result.size.times do | i |
             result[i]['extra_data'] = JSON.parse result[i]['extra_data']
         end
@@ -164,17 +148,16 @@ class AnsiblePlaybook
     private
 
     def allocate
-        db do | db |
-            db.query(
-                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES ('#{@uid}', '#{@gid}', '#{@name}', '#{@description}', '#{@body.gsub("'", "\'")}', '#{JSON.generate(@extra_data)}', '#{@create_time}')"
-            )
-            @id = db.query( "SELECT id FROM #{TABLE}" ).to_a.last['id']
+        args = {}
+        FIELDS.each do | var |
+            value = instance_variable_get(('@' + var).to_sym)
+            args[var.to_sym] = value.nil? ? '' : value
         end
+        args[:extra_data] = JSON.generate(args[:extra_data])
+        @id = DB.insert( **args )
     end
     def get_me id = @id
-        me = db do |db|
-            db.query( "SELECT * FROM #{TABLE} WHERE id=#{id}" ).to_a.last
-        end
+        me = DB.where(id: @id).to_a.last.to_s!
         me['extra_data'] = JSON.parse me['extra_data']
         me
     end
@@ -190,9 +173,13 @@ end
    start_time INT,
    end_time INT,
    status VARCHAR(12),
-   log TEXT,
+   log TEXT NOT NULL,
    hosts TEXT NOT NULL,
    vars TEXT NOT NULL,
+   playbook_name varchar(128) NOT NULL,
+   runnable TEXT NOT NULL,
+   comment TEXT,
+   codes VARCHAR(128) NOT NULL,
    PRIMARY KEY (proc_id) )
 =end
 
@@ -200,7 +187,14 @@ class AnsiblePlaybookProcess
 
     attr_reader :id, :install_id
 
-    FIELDS  = %w(uid playbook_id install_id create_time start_time end_time status log hosts vars)
+    FIELDS  = %w(
+        uid playbook_id install_id
+        create_time start_time end_time
+        status log hosts 
+        vars playbook_name runnable
+        comment codes
+    )
+    
     TABLE   = 'ansible_playbook_process'
     
     STATUS = {
@@ -210,30 +204,38 @@ class AnsiblePlaybookProcess
         'changed' => 'CHANGED',
         'unreachable' => 'UNREACHABLE',
         'failed' => 'FAILED',
-        '6' => 'LOST'
+        '6' => 'LOST',
+        'done' => 'DONE'
     }
+    DB = $DB[:ansible_playbook_process]
 
-    def initialize proc_id:nil, playbook_id:nil, uid:nil, hosts:[], vars:{}, auth:'default'
+    # hosts: { 'vmid' => [ip:port, credentials]}
+    def initialize proc_id:nil, playbook_id:nil, uid:nil, hosts:{}, vars:{}, comment:'', auth:'default'
         if proc_id.nil? then
             @uid, @playbook_id = uid, playbook_id
             @install_id = SecureRandom.uuid + '-' + Date.today.strftime
             @create_time, @start_time, @end_time = Time.now.to_i, -1, -1
             @status = '0'
-            @log = nil
+            @log = ''
+            @comment = comment.to_s
             @hosts = hosts
             @vars = vars
+            @playbook = AnsiblePlaybook.new(id: @playbook_id)
+            @playbook_name, @runnable = @playbook.runnable(@vars).to_a[0]
+            @codes = '—'
         else
             @id = proc_id
             sync
         end
-        @playbook = AnsiblePlaybook.new(id: @playbook_id)
-        @service, @runnable = @playbook.runnable(@vars).to_a[0]
+    rescue
+        @playbook = @playbook_name = @runnable = ''
+        @status = 'done'
     ensure
         allocate if @id.nil?
     end
     
     def run
-        nil if AnsiblePlaybookProcess::STATUS.keys.index(@status) > 0
+        nil if STATUS.keys.index(@status) > 0
         @start_time, @status = Time.now.to_i, '1'
         Thread.new do
             begin
@@ -248,7 +250,7 @@ class AnsiblePlaybookProcess
                     # Create local Hosts File
                     File.open("/tmp/#{@install_id}.ini", 'w') do |file|
                         file.write("[#{@install_id}]\n")
-                        @hosts.each {|host| file.write("#{host}\n") }
+                        @hosts.values.each {|host| file.write("#{host[0]}\n") }
                     end
                     # Upload Hosts file
                     ssh.sftp.upload!("/tmp/#{@install_id}.ini", "/tmp/#{@install_id}.ini")
@@ -259,9 +261,9 @@ class AnsiblePlaybookProcess
                         "ansible-playbook /tmp/#{@install_id}.yml -i /tmp/#{@install_id}.ini >> /tmp/#{@install_id}.runlog; echo 'DONE' >> /tmp/#{@install_id}.runlog" )
                 
                     @end_time = Time.now.to_i
-                    clean
-                    scan
                 end
+                clean
+                scan
             rescue
                 @status = 'failed'
             ensure
@@ -273,7 +275,7 @@ class AnsiblePlaybookProcess
     end
 
     def scan
-        return nil if AnsiblePlaybookProcess::STATUS.keys.index(@status) > 1
+        return nil if STATUS.keys.index(@status) > 1
         Net::SSH.start( ANSIBLE_HOST, ANSIBLE_HOST_USER, :port => ANSIBLE_HOST_PORT ) do | ssh |
             ssh.sftp.download!("/tmp/#{@install_id}.runlog", "/tmp/#{@install_id}.runlog")
             @log = File.read("/tmp/#{@install_id}.runlog")
@@ -282,10 +284,10 @@ class AnsiblePlaybookProcess
                 @log.slice!("START\n")
                 @log.slice!("\nDONE\n")
             else
-                @log = nil
+                @log = ""
                 return
             end
-        end if @log == nil
+        end if @log == ""
 
         codes = {}
         
@@ -316,18 +318,28 @@ class AnsiblePlaybookProcess
     ensure
         update
     end
+    def delete
+        @status = 'done'
+    ensure
+        update
+    end
     def status
         STATUS[@status]
     end
     def to_hash
-        db do |db|
-            db.query( "SELECT * FROM #{TABLE} WHERE proc_id=#{@id}" ).to_a.last
-        end
+        get_me
+    end
+    def human
+        r = to_hash
+        r['status'] = STATUS[r['status']]
+        r
     end
 
     def self.list
-        result = db do |db| 
-            db.query( "SELECT * FROM #{TABLE}" ).to_a
+        result = DB.all
+        result.map{ |pb| pb.to_s! }
+        result.each do |app|
+            app['status'] = STATUS[app['status']]
         end
         result
     end
@@ -345,39 +357,37 @@ class AnsiblePlaybookProcess
         nil
     end
     def update
-        db do |db|
-            FIELDS.each do | key |
-                db.query( "UPDATE #{TABLE} SET #{key}=#{
-                    var = instance_variable_get ('@' + key).to_sym
-                    var = JSON.generate var if var.class == Array || var.class == Hash
-                    var = "'#{var}'" if var.class == String
-                    var = 'null' if var.nil?
-                    var
-                } WHERE proc_id=#{@id}" )
-            end
+        args = {}
+        FIELDS.each do | var |
+            next if var == 'create_time'
+            value = instance_variable_get(('@' + var).to_sym)
+            value = (['vars', 'hosts', 'codes'].include?(var) && value != '—' ) ? JSON.generate(value) : value
+            args[var.to_sym] = value.nil? ? '' : value
         end
+        DB.where(proc_id: @id).update( **args )
         nil
     end
     def allocate
-        db do | db |
-            db.query(
-                "INSERT INTO #{TABLE} (#{FIELDS.join(', ')}) VALUES (#{
-                    FIELDS.map do |var|
-                        var = instance_variable_get(('@' + var).to_sym)
-                        var = JSON.generate var if var.class == Array || var.class == Hash
-                        var = "'#{var}'" if var.class == String
-                        var = 'null' if var.nil?
-                        var
-                    end.join(', ')})"
-            )
-            @id = db.query( "SELECT proc_id FROM #{TABLE}" ).to_a.last['proc_id']
+        args = {}
+        FIELDS.each do | var |
+            value = instance_variable_get(('@' + var).to_sym)
+            args[var.to_sym] = value.nil? ? '' : value
         end
+        args[:vars] = JSON.generate(args[:vars])
+        args[:hosts] = JSON.generate(args[:hosts])
+        args[:codes] = args[:codes] == '—' ? args[:codes] : JSON.generate(args[:codes])
+        @id = DB.insert( **args )
     end
     def sync
-        db do |db|
-            db.query( "SELECT * FROM #{TABLE} WHERE proc_id=#{@id}" ).to_a.last.each {|key, value| instance_variable_set(('@' + key).to_sym, value)}
+        get_me.each do |var, value|
+            instance_variable_set('@' + var, value)
         end
-        @hosts = JSON.parse @hosts
-        @vars = JSON.parse @vars
+    end
+    def get_me id = @id
+        me = DB.where(proc_id: @id).to_a.last.to_s!
+        me['vars'] = JSON.parse me['vars']
+        me['hosts'] = JSON.parse me['hosts']
+        me['codes'] = me['codes'] == '—' ? me['codes'] : JSON.parse( me['codes'])
+        me
     end
 end

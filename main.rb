@@ -148,20 +148,22 @@ class IONe
     # @param [Array<String>] hosts - Array of hosts where to run playbook
     # @param [Hash] vars - Hash with playbook variables values
     
-    def AnsiblePlaybookToProcess id, uid, hosts = [], vars = {}, auth = 'default'
+    def AnsiblePlaybookToProcess playbook_id, uid, hosts = [], vars = {}, comment = '', auth = 'default'
         AnsiblePlaybookProcess.new(
-            playbook_id: id,
+            playbook_id: playbook_id,
             uid: uid,
             hosts: hosts,
             vars: vars,
+            comment: comment,
             auth: auth
         ).id
     end
-    # Runs given playbook at given host with given variables
-    # @param [Fixnum] id - Process ID
-    # @param [String] host - where ti run playbook in hostname:port format
-    # @param [Hash] vars - variables values to fill playbook with, where key is variable name
-    # @return [Fixnum] Process ID
+    def GetAnsiblePlaybookProcess id
+        AnsiblePlaybookProcess.new(proc_id:id).human
+    end
+    def DeleteAnsiblePlaybookProcess id
+        AnsiblePlaybookProcess.new(proc_id:id).delete
+    end
     def RunAnsiblePlaybookProcess id
         AnsiblePlaybookProcess.new(proc_id:id).run
     end
