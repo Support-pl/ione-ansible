@@ -180,19 +180,20 @@ end
    runnable TEXT NOT NULL,
    comment TEXT,
    codes VARCHAR(128) NOT NULL,
+   run_after TEXT,
    PRIMARY KEY (proc_id) )
 =end
 
 class AnsiblePlaybookProcess
 
-    attr_reader :id, :install_id
+    attr_reader :id, :install_id, :hosts, :start_time, :end_time
 
     FIELDS  = %w(
         uid playbook_id install_id
         create_time start_time end_time
         status log hosts 
         vars playbook_name runnable
-        comment codes
+        comment codes run_after
     )
     
     TABLE   = 'ansible_playbook_process'
@@ -210,7 +211,7 @@ class AnsiblePlaybookProcess
     DB = $DB[:ansible_playbook_process]
 
     # hosts: { 'vmid' => [ip:port, credentials]}
-    def initialize proc_id:nil, playbook_id:nil, uid:nil, hosts:{}, vars:{}, comment:'', auth:'default'
+    def initialize proc_id:nil, playbook_id:nil, uid:nil, hosts:{}, vars:{}, comment:'', auth:'default', run_after:{}
         if proc_id.nil? then
             @uid, @playbook_id = uid, playbook_id
             @install_id = SecureRandom.uuid + '-' + Date.today.strftime
@@ -223,6 +224,7 @@ class AnsiblePlaybookProcess
             @playbook = AnsiblePlaybook.new(id: @playbook_id)
             @playbook_name, @runnable = @playbook.runnable(@vars).to_a[0]
             @codes = '—'
+            @run_after = run_after
         else
             @id = proc_id
             sync
@@ -234,10 +236,13 @@ class AnsiblePlaybookProcess
         allocate if @id.nil?
     end
     
-    def run
+    def run thread = true
         nil if STATUS.keys.index(@status) > 0
         @start_time, @status = Time.now.to_i, '1'
-        Thread.new do
+        
+        update
+
+        process = Proc.new do
             begin
                 Net::SSH.start( ANSIBLE_HOST, ANSIBLE_HOST_USER, :port => ANSIBLE_HOST_PORT ) do | ssh |
                     # Create local Playbook version
@@ -269,6 +274,13 @@ class AnsiblePlaybookProcess
             ensure
                 update
             end
+        end
+        if thread then
+            Thread.new do
+                process.call
+            end
+        else
+            process.call
         end
     ensure
         update
@@ -312,6 +324,8 @@ class AnsiblePlaybookProcess
         end
         
         @codes = codes
+
+        run_after
     rescue => e
         puts e.message, e.backtrace
         @status = '6'
@@ -333,6 +347,17 @@ class AnsiblePlaybookProcess
         r = to_hash
         r['status'] = STATUS[r['status']]
         r
+    end
+    def run_after
+        return if @run_after['method'].nil?
+
+        if @run_after['params'].nil? then
+            IONe.new($client, $db).send(@run_after['method'])         
+        elsif @run_after['params'].class == Array then
+            IONe.new($client, $db).send(@run_after['method'], *@run_after['params'])
+        else
+            IONe.new($client, $db).send(@run_after['method'], @run_after['params'])
+        end
     end
 
     def self.list
@@ -361,7 +386,7 @@ class AnsiblePlaybookProcess
         FIELDS.each do | var |
             next if var == 'create_time'
             value = instance_variable_get(('@' + var).to_sym)
-            value = (['vars', 'hosts', 'codes'].include?(var) && value != '—' ) ? JSON.generate(value) : value
+            value = (['vars', 'hosts', 'codes', 'run_after'].include?(var) && value != '—' ) ? JSON.generate(value) : value
             args[var.to_sym] = value.nil? ? '' : value
         end
         DB.where(proc_id: @id).update( **args )
@@ -376,6 +401,7 @@ class AnsiblePlaybookProcess
         args[:vars] = JSON.generate(args[:vars])
         args[:hosts] = JSON.generate(args[:hosts])
         args[:codes] = args[:codes] == '—' ? args[:codes] : JSON.generate(args[:codes])
+        args[:run_after] = JSON.generate(args[:run_after])
         @id = DB.insert( **args )
     end
     def sync
@@ -388,6 +414,7 @@ class AnsiblePlaybookProcess
         me['vars'] = JSON.parse me['vars']
         me['hosts'] = JSON.parse me['hosts']
         me['codes'] = me['codes'] == '—' ? me['codes'] : JSON.parse( me['codes'])
+        me['run_after'] = JSON.parse me['run_after']
         me
     end
 end

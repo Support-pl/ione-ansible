@@ -206,6 +206,7 @@ end
 post '/ansible' do # Allocates new playbook
    begin
       data = JSON.parse(@request_body)
+      raise "Error raised for debug proposes" if data['cause_error']
       r response: { :ANSIBLE => {:ID => AnsiblePlaybook.new(id:nil, data:data, user:@one_user).id }}
    rescue JSON::ParserError # If JSON.parse fails
       r error: "Broken data received, unable to parse."
