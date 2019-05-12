@@ -86,6 +86,7 @@ class AnsiblePlaybook
         body = YAML.load(body)
         raise AnsiblePlaybookSyntaxError.new( "Playbook must be array (body should start from ' - ')" ) unless body.class == Array
         raise AnsiblePlaybookSyntaxError.new( "hosts must be equal to <%group%>" ) unless body.first['hosts'] == "<%group%>"
+        raise AnsiblePlaybookSyntaxError.new( "key local_action isn't acceptable" ) if body.first.has_key? 'local_action'
         return true, ""
     rescue Psych::SyntaxError => e
         return false, e.message

@@ -9,7 +9,7 @@ end
 def ansible_check_permissions pb, u, uma # Checks permissions for given playbook and action for given user
    u.info!
    perm = pb['extra_data']['PERMISSIONS'].split('')
-   mod = perm.values_at( *Array.new(3){ |i| uma + 3 * i }).map{| value | value == '1' ? true : false }
+   mod = perm.values_at( *Array.new(3){ |i| uma + 3 * i } ).map{ | value | value == '1' ? true : false }
    return (
       (  u.id == pb['uid'] && mod[0]            ) ||
       (  u.groups.include?(pb['gid']) && mod[1] ) ||
@@ -80,7 +80,7 @@ class AnsiblePlaybook
             raise ParamsError.new @params # Custom error if extra_data is nil
          end
          raise ParamsError.new(@params) if check # Custom error if something is nil
-         raise NoAccessError.new(2) unless user.groups.include? 0 # Custom error if user is not in oneadmin group
+         #raise NoAccessError.new(2) unless user.groups.include? 0 # Custom error if user is not in oneadmin group
          @user.info! # Retrieve object body
          @id = id = IONe.CreateAnsiblePlaybook(@params.merge({:uid => @user.id, :gid => @user.gid})) # Save id of new playbook
       else # If id is given getting existing playbook

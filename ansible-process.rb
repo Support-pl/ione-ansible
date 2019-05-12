@@ -11,27 +11,20 @@ class AnsiblePlaybookProcess
    def initialize id:nil, data:{'action' => {}}, user:nil
       @user = user # Need this to check permissions later
       if id.nil? then # If id is not given - new Playbook will be created
-         return;@params = data
-         begin
-            # Check if mandatory params are not nil
-            check =  @params['name'].nil?                      ||
-                     @params['body'].nil?                      ||
-                     @params['extra_data'].nil?                ||
-                     @params['extra_data']['PERMISSIONS'].nil?
-         rescue
-            raise ParamsError.new @params # Custom error if extra_data is nil
+         @params = IONe.GetAnsiblePlaybook(data['playbook_id'])
+         @permissions = Array.new(3) do | uma |
+            ansible_check_permissions(@params, @user, uma)
          end
-         raise ParamsError.new(@params) if check # Custom error if something is nil
-         raise NoAccessError.new(2) unless user.groups.include? 0 # Custom error if user is not in oneadmin group
+         raise NoAccessError.new(0) unless @permissions[0] # Custom error if user is not in oneadmin group
          @user.info! # Retrieve object body
-         @id = id = IONe.CreateAnsiblePlaybookProcess(@params.merge({:uid => @user.id, :gid => @user.gid})) # Save id of new playbook
+         @id = id = IONe.AnsiblePlaybookToProcess(data['playbook_id'], @user.id, data['hosts'], data['vars'], data['comment']) # Save id of new playbook
       else # If id is given getting existing playbook
          # Params from OpenNebula are always in {"action" => {"perform" => <%method name%>, "params" => <%method params%>}} form
          # So here initializer saves method and params to object
          @method, @params = data['action']['perform'], data['action']['params']
          @body = IONe.GetAnsiblePlaybookProcess(@id = id) # Getting Playbook in hash form
          @permissions = Array.new(3) do |uma|
-            ansible_check_permissions({ 'extra_data' => { 'PERMISSIONS' => '111000000' } }, @user, uma)
+            ansible_check_permissions({ 'uid' => @body['uid'], 'extra_data' => { 'PERMISSIONS' => '111000000' } }, @user, uma)
          end # Parsing permissions
          raise NoAccessError.new(0) unless @permissions[0] # Custom error if user has no USE rights
 
@@ -100,6 +93,15 @@ get '/ansible_process' do
       msg = e.message
       msg.crop_zmq_error! if msg.is_zmq_error? # Crops ZmqJsonRpc backtrace from exception message
       r error: e.message, backtrace: e.backtrace
+   end
+end
+
+post '/ansible_process' do
+   begin
+      data = JSON.parse(@request_body)
+      r response: { :ANSIBLE_PROCESS => {:ID => AnsiblePlaybookProcess.new(id:nil, data:data, user:@one_user).id } }
+   rescue => e
+      r error: e.message, params: data
    end
 end
 
